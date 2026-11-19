@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'puzzle.dart';
+import 'home_page.dart';
 
 class LoginPage extends StatefulWidget{
   const LoginPage({super.key});
@@ -59,7 +60,17 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      _showMessage('Данные верные, пройдите пазл');
+      if (!_puzzleVerified) {
+        _showMessage('Сначала пройдите проверку пазлом');
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomePage(),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
