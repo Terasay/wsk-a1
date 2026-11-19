@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'auth_service.dart';
 
 class LoginPage extends StatefulWidget{
   const LoginPage({super.key});
@@ -11,7 +12,14 @@ class _LoginPageState extends State<LoginPage> {
 
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
-  void _handleLogin () {
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+  Future<void> _handleLogin () async {
     final login = _loginController.text.trim();
     final password = _passwordController.text;
 
@@ -24,11 +32,38 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Поля заполнены'),
-      ),
-    );
+    try {
+      final users = await fetchUsers();
+      Map<String, dynamic>? foundUser;
+
+      for (final user in users) {
+        if (user is! Map<String, dynamic>) continue;
+
+        if (user['username'] == login || user['email'] == login) {
+          foundUser = user;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+
+      if (foundUser == null) {
+        _showMessage('Email or username does not exist');
+        return;
+      }
+
+      if (foundUser['password'] != password) {
+        _showMessage('Incorrect password');
+        return;
+      }
+
+      _showMessage('Данные верные, пройдите пазл');
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage('Не удалось подключиться к серверу');
+      debugPrint('Ошибка запроса пользователей: $e');
+    }
   }
 
 
