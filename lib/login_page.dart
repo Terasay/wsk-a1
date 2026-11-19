@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
+import 'puzzle.dart';
 
 class LoginPage extends StatefulWidget{
   const LoginPage({super.key});
@@ -12,6 +13,7 @@ class _LoginPageState extends State<LoginPage> {
 
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _puzzleVerified = false;
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -114,6 +116,16 @@ class _LoginPageState extends State<LoginPage> {
                   )
                 ),
                 obscureText: true,
+              ),
+
+              SizedBox(height: 25),
+
+              PuzzleCaptcha(
+                onVerified: (success) {
+                  setState(() {
+                    _puzzleVerified = success;
+                  });
+                },
               ),
 
               SizedBox(height: 30),
