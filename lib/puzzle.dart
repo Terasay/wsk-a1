@@ -1,214 +1,134 @@
-
-import 'dart:math' as math;
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 class PuzzleCaptcha extends StatefulWidget {
   final ValueChanged<bool> onVerified;
-
-  const PuzzleCaptcha({
-    super.key,
-    required this.onVerified,
-  });
+  const PuzzleCaptcha({super.key, required this.onVerified});
 
   @override
   State<PuzzleCaptcha> createState() => _PuzzleCaptchaState();
 }
 
 class _PuzzleCaptchaState extends State<PuzzleCaptcha> {
-  static const String _imagePath = 'assets/images/landscape.jpg';
+  double _t = 0; // Положение ползунка от 0.0 до 1.0
+  bool _done = false;
 
-  static const double _imageHeight = 175;
-  static const double _pieceSize = 58;
-  static const double _pieceTop = 55;
+  // Случайная цель (от 0.35 до 0.90) и случайный неровный угол выреза
+  late final double _targetT = 0.35 + Random().nextDouble() * 0.55;
+  late final double _targetAngle =
+      (Random().nextBool() ? 1 : -1) * (0.25 + Random().nextDouble() * 0.45);
 
-  double _position = 0;
-  bool _isVerified = false;
-
-  // Случайная позиция слота при создании капчи
-  late final double _targetRatio =
-      0.30 + math.Random().nextDouble() * 0.58;
+  double get _targetX => _targetT * 220;
+  double get _x => _t * 220;
+  // Когда _t доходит до _targetT, угол пазла точно совпадает с _targetAngle
+  double get _angle => _targetAngle + (_t - _targetT) * 3.0;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 250,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final maxX = math.max(0.0, width - _pieceSize);
-          final targetX = maxX * _targetRatio;
+      width: 280,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 280,
+            height: 160,
+            child: Stack(
+              children: [
+                // 1. Фоновая картинка
+                Image.asset('assets/images/landscape.jpg', width: 280, height: 160, fit: BoxFit.cover),
 
-          return Stack(
-            children: [
-              // 1. Основная фотография
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: _imageHeight,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    _imagePath,
-                    fit: BoxFit.cover,
+                // 2. Повёрнутый слот на фоне
+                Positioned(
+                  left: _targetX,
+                  top: 50,
+                  child: Transform.rotate(
+                    angle: _targetAngle,
+                    child: CustomPaint(size: const Size(60, 60), painter: _SlotPainter()),
                   ),
                 ),
-              ),
 
-              // 2. Место, куда нужно поставить фрагмент
-              Positioned(
-                left: targetX,
-                top: _pieceTop,
-                child: CustomPaint(
-                  size: const Size(_pieceSize, _pieceSize),
-                  painter: _SlotPainter(),
-                ),
-              ),
-
-              // 3. Подвижный фрагмент фотографии
-              Positioned(
-                left: _position,
-                top: _pieceTop,
-                child: ClipPath(
-                  clipper: _PuzzleClipper(),
-                  child: SizedBox(
-                    width: _pieceSize,
-                    height: _pieceSize,
-                    child: Stack(
-                      clipBehavior: Clip.hardEdge,
-                      children: [
-                        Positioned(
-                          left: -targetX,
-                          top: -_pieceTop,
-                          width: width,
-                          height: _imageHeight,
-                          child: Image.asset(
-                            _imagePath,
-                            fit: BoxFit.cover,
+                // 3. Подвижный пазл с вращением и контр-вращением текстуры
+                Positioned(
+                  left: _x,
+                  top: 50,
+                  child: Transform.rotate(
+                    angle: _angle, // Крутим сам пазл
+                    child: ClipPath(
+                      clipper: _PuzzleClipper(),
+                      child: SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: Transform.rotate(
+                          angle: -_angle, // Крутим фото обратно, чтобы оно оставалось ровным
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned(
+                                left: -_targetX,
+                                top: -50,
+                                child: Image.asset(
+                                  'assets/images/landscape.jpg',
+                                  width: 280,
+                                  height: 160,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
+            ),
+          ),
 
-              // 4. Дорожка ползунка
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 190,
-                height: 50,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-
-              // 5. Управление ползунком
-              Positioned(
-                left: _position,
-                top: 190,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (details) {
-                    if (_isVerified) return;
-
+          // 4. Ползунок
+          Slider(
+            value: _t,
+            activeColor: _done ? Colors.green : Colors.black,
+            onChanged: _done ? null : (v) => setState(() => _t = v),
+            onChangeEnd: _done
+                ? null
+                : (v) {
+                    final ok = (_x - _targetX).abs() <= 10 && (_angle - _targetAngle).abs() <= 0.15;
                     setState(() {
-                      _position =
-                          (_position + details.delta.dx)
-                              .clamp(0.0, maxX);
+                      _done = ok;
+                      _t = ok ? _targetT : 0;
                     });
+                    widget.onVerified(ok);
                   },
-                  onHorizontalDragEnd: (_) {
-                    final success =
-                        (_position - targetX).abs() <= 10;
-
-                    setState(() {
-                      _isVerified = success;
-
-                      if (!success) {
-                        _position = 0;
-                      }
-                    });
-
-                    widget.onVerified(success);
-                  },
-                  child: Container(
-                    width: _pieceSize,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: _isVerified
-                          ? Colors.green
-                          : Colors.black,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _isVerified
-                          ? Icons.check
-                          : Icons.arrow_forward,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 }
 
-// Создаём форму фрагмента пазла
-Path _createPuzzlePath(Size size) {
-  final w = size.width;
-  final h = size.height;
-
-  return Path()
-    ..moveTo(w * 0.12, h * 0.12)
-    ..lineTo(w * 0.35, h * 0.12)
-    ..cubicTo(w * 0.28, 0, w * 0.72, 0, w * 0.65, h * 0.12)
-    ..lineTo(w * 0.88, h * 0.12)
-    ..lineTo(w * 0.88, h * 0.37)
-    ..cubicTo(w, h * 0.30, w, h * 0.70, w * 0.88, h * 0.63)
-    ..lineTo(w * 0.88, h * 0.88)
-    ..lineTo(w * 0.12, h * 0.88)
-    ..lineTo(w * 0.12, h * 0.63)
-    ..cubicTo(0, h * 0.70, 0, h * 0.30, w * 0.12, h * 0.37)
-    ..close();
+// Форма пазла: сверху и снизу плоско, справа выступ, слева выемка
+Path _puzzlePath() {
+  var p = Path()..addRect(const Rect.fromLTWH(10, 10, 40, 40));
+  p = Path.combine(PathOperation.union, p, Path()..addOval(Rect.fromCircle(center: const Offset(50, 30), radius: 8)));
+  p = Path.combine(PathOperation.difference, p, Path()..addOval(Rect.fromCircle(center: const Offset(10, 30), radius: 8)));
+  return p;
 }
 
-// Обрезает фотографию по форме пазла
 class _PuzzleClipper extends CustomClipper<Path> {
   @override
-  Path getClip(Size size) => _createPuzzlePath(size);
-
+  Path getClip(Size size) => _puzzlePath();
   @override
   bool shouldReclip(covariant _PuzzleClipper oldClipper) => false;
 }
 
-// Рисует контур места для фрагмента
 class _SlotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final path = _createPuzzlePath(size);
-
-    canvas.drawPath(
-      path,
-      Paint()..color = const Color(0x66000000),
-    );
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
+    final p = _puzzlePath();
+    canvas.drawPath(p, Paint()..color = Colors.black54);
+    canvas.drawPath(p, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2);
   }
-
   @override
   bool shouldRepaint(covariant _SlotPainter oldDelegate) => false;
 }
