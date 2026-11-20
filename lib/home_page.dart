@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'detail_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final Map currentUser;
+  const HomePage({super.key, required this.currentUser});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -242,38 +244,49 @@ class _HomePageState extends State<HomePage> {
     final media = post['media'] as List;
     final isFollowing = _followedUsers.contains(author);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _mediaBox(media[0] as Map),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: Colors.grey[300],
-              child: const Icon(Icons.person_outline, size: 15, color: Colors.black54),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                author,
-                overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => DetailPage(
+            post: post,
+            currentUser: widget.currentUser,)
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _mediaBox(media[0] as Map),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: Colors.grey[300],
+                child: const Icon(Icons.person_outline, size: 15, color: Colors.black54),
               ),
-            ),
-            _followChip(author, isFollowing),
-          ],
-        ),
-      ],
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  author,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              _followChip(author, isFollowing),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
