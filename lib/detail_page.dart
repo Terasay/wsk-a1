@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class DetailPage extends StatefulWidget {
   final Map post;
@@ -20,23 +22,62 @@ class _DetailPageState extends State<DetailPage> {
   final List _comments = [];
 
   @override
+  void initState() {
+    super.initState();
+    _loadComments();
+  }
+
+  @override
   void dispose() {
     _commentController.dispose();
     super.dispose();
   }
 
-  void _addComment() {
+  Future<void> _loadComments() async {
+    final postId = widget.post['id'];
+    final url = Uri.parse('http://10.0.2.2:3000/api/comments?postId=$postId');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      setState(() {
+        _comments.clear();
+        for (var item in data) {
+          _comments.add({
+            'author': (item['author'] ?? 'User').toString(),
+            'text': (item['text'] ?? '').toString(),
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _addComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
 
-    final currentAuthor = (widget.currentUser?['username'] ?? 'Me').toString();
-    setState(() {
-      _comments.add({
+    final currentAuthor = {widget.currentUser?['username'] ?? 'Me'}.toString();
+    final url = Uri.parse('http://10.0.2.2:3000/api/comments');
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': "application/json"},
+      body: jsonEncode({
+        'postId': widget.post['id'],
         'author': currentAuthor,
         'text': text,
+      }),
+    );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      setState(() {
+        _comments.add({
+          'author': currentAuthor,
+          'text': text,
+        });
+        _commentController.clear();
       });
-      _commentController.clear();
-    });
+    }
   }
 
   @override
