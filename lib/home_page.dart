@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'detail_page.dart';
+import 'create_post_page.dart';
 
 class HomePage extends StatefulWidget {
   final Map currentUser;
@@ -11,55 +14,87 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   bool _isLoose = false;
-  final _followedUsers = {'User1', 'User2'};
+  final Map<String, String> _followIds = {};
+  final Map<String, String> _userNames = {};
+  final List _posts = [];
 
-  final _posts = [
-    {
-      'title': 'Forbidden City',
-      'author': 'User1',
-      'media': [
-        {'type': 'image'},
-      ],
-    },
-    {
-      'title': 'Great Wall',
-      'author': 'User2',
-      'media': [
-        {'type': 'video'},
-        {'type': 'image'},
-      ],
-    },
-    {
-      'title': 'Terracotta Army',
-      'author': 'User3',
-      'media': [
-        {'type': 'image'},
-        {'type': 'image'},
-        {'type': 'video'},
-      ],
-    },
-    {
-      'title': 'Summer Palace',
-      'author': 'User1',
-      'media': [
-        {'type': 'video'},
-        {'type': 'image'},
-        {'type': 'image'},
-        {'type': 'video'},
-        {'type': 'image'},
-        {'type': 'image'},
-      ],
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+    _loadFollows();
+  }
 
-  void _toggleFollow(String author) {
-    setState(() {
-      if (_followedUsers.contains(author)) {
-        _followedUsers.remove(author);
-      } else {
-        _followedUsers.add(author);
+  Future<void> _loadPosts() async {
+    final url = Uri.parse('http://10.0.2.2:3000/api/users');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List users = jsonDecode(response.body);
+      final List loadedPosts = [];
+
+      for (var user in users) {
+        final authorName = (user['nickname'] ?? user['username'] ?? 'User').toString();
+        final authorId = (user['id'] ?? '').toString();
+        final discoveries = (user['discoveries'] as List?) ?? [];
+        _userNames[authorId] = authorName;
+
+        for (var item in discoveries) {
+          final post = Map<String, dynamic>.from(item as Map);
+          post['author'] = authorName;
+          post['authorId'] = authorId;
+          loadedPosts.add(post);
+        }
       }
-    });
+
+      setState(() {
+        _posts
+          ..clear()
+          ..addAll(loadedPosts);
+      });
+    }
+  }
+
+  Future<void> _loadFollows() async {
+    final myId = (widget.currentUser['id'] ?? '').toString();
+    final url = Uri.parse('http://10.0.2.2:3000/api/follows?userId=$myId');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      setState(() {
+        _followIds.clear();
+        for (var item in data) {
+          _followIds[item['followingId'].toString()] = item['id'].toString();
+        }
+      });
+    }
+  }
+
+  Future<void> _toggleFollow(String targetUserId) async {
+    final myId = (widget.currentUser['id'] ?? '').toString();
+
+    if (_followIds.containsKey(targetUserId)) {
+      // Отписываемся: удаляем запись по её id
+      final recordId = _followIds[targetUserId]!;
+      final res = await http.delete(
+        Uri.parse('http://10.0.2.2:3000/api/follows/$recordId'),
+      );
+      if (res.statusCode == 200) {
+        setState(() => _followIds.remove(targetUserId));
+      }
+    } else {
+      // Подписываемся: создаём новую запись в follows
+      final res = await http.post(
+        Uri.parse('http://10.0.2.2:3000/api/follows'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userId': myId, 'followingId': targetUserId}),
+      );
+      if (res.statusCode == 201 || res.statusCode == 200) {
+        final created = jsonDecode(res.body);
+        setState(() => _followIds[targetUserId] = created['id'].toString());
+      }
+    }
   }
 
   @override
@@ -104,8 +139,19 @@ class _HomePageState extends State<HomePage> {
             selectedFontSize: 14,
             unselectedFontSize: 14,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-            onTap: (index) {
-              debugPrint('Нажали кнопку: $index');
+            onTap: (index) async {
+              if (index == 1) {
+                final created = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CreatePostPage(currentUser: widget.currentUser),
+                  ),
+                );
+
+                if (created == true) {
+                  _loadPosts();
+                }
+              }
             },
             items: const [
               BottomNavigationBarItem(
@@ -181,11 +227,11 @@ class _HomePageState extends State<HomePage> {
 
   // Вкладка 2: Following (Подписки)
   Widget _buildFollowingTab() {
-    final followedList = _followedUsers.toList();
+    final followedIds = _followIds.keys.toList();
 
     final followingPosts = _posts
-        .where((post) => _followedUsers.contains(post['author']))
-        .toList();
+      .where((post) => _followIds.containsKey(post['authorId'].toString()))
+      .toList();
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -195,7 +241,7 @@ class _HomePageState extends State<HomePage> {
             height: 75,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: followedList.length,
+              itemCount: followedIds.length,
               itemBuilder: (context, index) {
                 return Padding(
                   padding: const EdgeInsets.only(right: 16),
@@ -208,7 +254,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        followedList[index],
+                        _userNames[followedIds[index]] ?? 'User',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ],
@@ -242,7 +288,9 @@ class _HomePageState extends State<HomePage> {
     final title = (post['title'] ?? '').toString();
     final author = (post['author'] ?? '').toString();
     final media = post['media'] as List;
-    final isFollowing = _followedUsers.contains(author);
+    final authorId = (post['authorId'] ?? '').toString();
+    final myId = (widget.currentUser['id'] ?? '').toString();
+    final isFollowing = _followIds.containsKey(authorId);
 
     return GestureDetector(
       onTap: () {
@@ -258,7 +306,9 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: _mediaBox(media[0] as Map),
+            child: media.isEmpty
+              ? Container(color: Colors.grey)
+              : _mediaBox(media[0] as Map),
           ),
           const SizedBox(height: 6),
           Text(
@@ -282,7 +332,7 @@ class _HomePageState extends State<HomePage> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _followChip(author, isFollowing),
+              if (authorId != myId) _followChip(authorId, isFollowing),
             ],
           ),
         ],
@@ -295,7 +345,9 @@ class _HomePageState extends State<HomePage> {
     final title = (post['title'] ?? '').toString();
     final author = (post['author'] ?? '').toString();
     final media = post['media'] as List;
-    final isFollowing = _followedUsers.contains(author);
+    final authorId = (post['authorId'] ?? '').toString();
+    final myId = (widget.currentUser['id'] ?? '').toString();
+    final isFollowing = _followIds.containsKey(authorId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,7 +374,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
-            _followChip(author, isFollowing),
+            if (authorId != myId) _followChip(authorId, isFollowing),
           ],
         ),
       ],
@@ -431,9 +483,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Кнопка Follow / Following
-  Widget _followChip(String author, bool isFollowing) {
+  Widget _followChip(String authorId, bool isFollowing) {
     return GestureDetector(
-      onTap: () => _toggleFollow(author),
+      onTap: () => _toggleFollow(authorId),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(

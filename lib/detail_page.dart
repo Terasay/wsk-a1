@@ -80,6 +80,27 @@ class _DetailPageState extends State<DetailPage> {
     }
   }
 
+  List<String> _getTags(String text) {
+    // 1. Переводим в нижний регистр, убираем точки/запятые и делим по пробелам
+    final words = text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 3); // Отсекаем короткие предлоги вроде in, of, the, and
+
+    // 2. Считаем, сколько раз встречается каждое слово
+    final counts = <String, int>{};
+    for (var w in words) {
+      counts[w] = (counts[w] ?? 0) + 1;
+    }
+
+    // 3. Сортируем слова от самого частого к редкому и берём первые 3
+    final sorted = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+    return sorted.take(3).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final author = (widget.post['author'] ?? 'User').toString();
@@ -88,6 +109,8 @@ class _DetailPageState extends State<DetailPage> {
     final subtitle = (widget.post['subtitle'] ?? 'Subtitle').toString();
     final description = (widget.post['description'] ?? 'Description').toString();
     final publishTime = (widget.post['publishTime'] ?? '2026-08-01 12:00').toString();
+
+    final tags = _getTags(description);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -171,10 +194,10 @@ class _DetailPageState extends State<DetailPage> {
                         children: [
                           Wrap(
                             spacing: 8,
-                            children: ['Tag1', 'Tag2', 'Tag3'].map((tag) {
+                            children: tags.map((tag) {
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                color: Colors.grey[300],
+                                color: Colors.grey,
                                 child: Text(tag, style: const TextStyle(fontSize: 12)),
                               );
                             }).toList(),
