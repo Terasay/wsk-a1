@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'detail_page.dart';
 import 'create_post_page.dart';
+import 'my_page.dart';
+
 
 class HomePage extends StatefulWidget {
   final Map currentUser;
@@ -151,6 +153,13 @@ class _HomePageState extends State<HomePage> {
                 if (created == true) {
                   _loadPosts();
                 }
+              }
+
+              else if (index == 2) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => MyPage(currentUser: widget.currentUser),
+                  ),
+                );
               }
             },
             items: const [
